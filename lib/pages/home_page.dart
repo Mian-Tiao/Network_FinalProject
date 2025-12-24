@@ -3,6 +3,7 @@ import '../services/tcp_client.dart';
 import 'checkin_page.dart';
 import 'history_page.dart';
 import 'summary_page.dart';
+import 'exercise_library_page.dart';
 
 class HomePage extends StatelessWidget {
   final TcpClient client;
@@ -79,6 +80,17 @@ class HomePage extends StatelessWidget {
                 );
               },
               child: const Text('訓練統計 / 儀表板'),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ExerciseLibraryPage(client: client, userId: userId,),
+                  ),
+                );
+              },
+              child: const Text('動作圖鑑（Open API）'),
             ),
           ],
         ),
