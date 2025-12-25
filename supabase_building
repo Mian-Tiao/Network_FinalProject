@@ -1,0 +1,47 @@
+create table user_checkins (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    text    not null,
+  score      integer not null,
+  note       text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_user_checkins_user_time
+  on user_checkins (user_id, created_at desc);
+  
+create table exercise_logs (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      text    not null,
+  exercise_id  text    not null,
+  weight       numeric not null,
+  reps         integer not null,
+  difficulty   integer not null,
+  created_at   timestamptz not null default now()
+);
+
+create index idx_exercise_logs_user_time
+  on exercise_logs (user_id, created_at desc);
+
+create index idx_exercise_logs_user_ex
+  on exercise_logs (user_id, exercise_id, created_at desc);
+
+create table user_custom_exercises (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     text    not null,
+  exercise_id text    not null,
+  name        text    not null,
+  body_part   text,
+  target      text,
+  equipment   text,
+  base_weight numeric not null,
+  min_reps    integer not null,
+  max_reps    integer not null,
+  gif_url     text,
+  created_at  timestamptz not null default now()
+);
+
+create unique index uniq_user_custom_ex
+  on user_custom_exercises (user_id, exercise_id);
+
+create index idx_user_custom_ex_bodypart
+  on user_custom_exercises (user_id, body_part);
