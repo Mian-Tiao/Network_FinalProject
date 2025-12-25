@@ -1,0 +1,212 @@
+import socket
+import threading
+import json
+import requests
+from datetime import datetime, timedelta
+
+# =========================
+# Supabase 設定
+# =========================
+from supabase import create_client
+
+SUPABASE_URL = ""     # 🔴 換成你的
+SUPABASE_KEY = ""                # 🔴 anon public key
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# =========================
+# In-memory storage
+# =========================
+user_logs = {}
+user_checkins = {}
+user_custom_exercises = {}
+
+# =========================
+# ExerciseDB API
+# =========================
+EXDB_BASE_URL = "https://exercisedb.p.rapidapi.com"
+EXDB_API_KEY = ""
+
+EXDB_HEADERS = {
+    "X-RapidAPI-Key": EXDB_API_KEY,
+    "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
+}
+
+EXDB_IMAGE_URL_TEMPLATE = (
+    f"{EXDB_BASE_URL}/image"
+    f"?resolution=360"
+    f"&rapidapi-key={EXDB_API_KEY}"
+    f"&exerciseId={{id}}"
+)
+
+# =========================
+# Exercise template
+# =========================
+exercises_template = [
+    {"id": 1, "name": "深蹲", "bodyPart": "legs", "baseWeight": 40, "minReps": 8, "maxReps": 10},
+    {"id": 2, "name": "臥推", "bodyPart": "chest", "baseWeight": 30, "minReps": 8, "maxReps": 10},
+    {"id": 3, "name": "硬舉", "bodyPart": "back", "baseWeight": 50, "minReps": 5, "maxReps": 8},
+]
+
+exercise_index = {ex["id"]: ex for ex in exercises_template}
+
+# =========================
+# Supabase DB helpers
+# =========================
+def db_add_exercise_log(user_id, exercise_id, weight, reps, difficulty):
+    try:
+        supabase.table("exercise_logs").insert({
+            "user_id": str(user_id),
+            "exercise_id": str(exercise_id),
+            "weight": weight,
+            "reps": reps,
+            "difficulty": difficulty,
+        }).execute()
+    except Exception as e:
+        print("[DB ERROR] exercise_logs:", e)
+
+
+def db_add_checkin(user_id, score, note=None):
+    try:
+        supabase.table("user_checkins").insert({
+            "user_id": str(user_id),
+            "score": score,
+            "note": note,
+        }).execute()
+    except Exception as e:
+        print("[DB ERROR] user_checkins:", e)
+
+
+def db_add_custom_exercise(user_id, exercise_id, name, body_part, target,
+                           equipment, base_weight, min_reps, max_reps, gif_url=None):
+    try:
+        supabase.table("user_custom_exercises").upsert({
+            "user_id": str(user_id),
+            "exercise_id": str(exercise_id),
+            "name": name,
+            "body_part": body_part,
+            "target": target,
+            "equipment": equipment,
+            "base_weight": base_weight,
+            "min_reps": min_reps,
+            "max_reps": max_reps,
+            "gif_url": gif_url,
+        }).execute()
+    except Exception as e:
+        print("[DB ERROR] user_custom_exercises:", e)
+
+# =========================
+# TCP Server
+# =========================
+HOST = "0.0.0.0"
+PORT = 5000
+
+def handle_client(conn, addr):
+    print(f"[CONNECTED] {addr}")
+    buffer = ""
+
+    try:
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+
+            buffer += data.decode("utf-8")
+
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                req = json.loads(line.strip())
+                action = req.get("action")
+
+                # -----------------
+                if action == "login":
+                    resp = {"status": "ok", "userId": req.get("username")}
+
+                elif action == "checkin":
+                    user_id = req["userId"]
+                    score = sum(int(req.get(k, 3)) for k in ["sleep", "fatigue", "soreness", "stress"])
+
+                    user_checkins[user_id] = {
+                        "time": datetime.now().isoformat(),
+                        "score": score,
+                    }
+
+                    db_add_checkin(user_id, score)
+
+                    resp = {"status": "ok", "fatigueScore": score}
+
+                elif action == "log_set":
+                    user_id = req["userId"]
+                    logs = user_logs.setdefault(user_id, [])
+
+                    log = {
+                        "time": datetime.now().isoformat(),
+                        "exerciseId": req["exerciseId"],
+                        "weight": float(req["weight"]),
+                        "reps": int(req["reps"]),
+                        "difficulty": int(req["difficulty"]),
+                    }
+
+                    logs.append(log)
+
+                    db_add_exercise_log(
+                        user_id,
+                        req["exerciseId"],
+                        log["weight"],
+                        log["reps"],
+                        log["difficulty"],
+                    )
+
+                    resp = {"status": "ok", "message": "set logged"}
+
+                elif action == "add_exercise_from_api":
+                    user_id = req["userId"]
+                    ex_id = req["id"]
+
+                    user_custom_exercises.setdefault(user_id, {})[ex_id] = {
+                        "name": req["name"],
+                        "bodyPart": req["bodyPart"],
+                        "target": req.get("target"),
+                        "equipment": req.get("equipment"),
+                        "baseWeight": 20.0,
+                        "minReps": 8,
+                        "maxReps": 12,
+                    }
+
+                    db_add_custom_exercise(
+                        user_id,
+                        ex_id,
+                        req["name"],
+                        req["bodyPart"],
+                        req.get("target"),
+                        req.get("equipment"),
+                        20.0,
+                        8,
+                        12,
+                    )
+
+                    resp = {"status": "ok"}
+
+                else:
+                    resp = {"status": "error", "message": "unknown action"}
+
+                conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
+
+    finally:
+        conn.close()
+        print(f"[DISCONNECTED] {addr}")
+
+
+def main():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((HOST, PORT))
+    server.listen(5)
+    print(f"[LISTENING] on port {PORT}")
+
+    while True:
+        conn, addr = server.accept()
+        threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
+
+
+if __name__ == "__main__":
+    main()
