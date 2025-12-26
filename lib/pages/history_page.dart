@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
 
@@ -26,6 +25,7 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     _sub = widget.client.messages.listen((msg) {
+      if (!mounted) return;
       if (msg['action'] == 'get_history' && msg['status'] == 'ok') {
         final raw = msg['items'] as List<dynamic>? ?? [];
         setState(() {
@@ -56,8 +56,6 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   String _formatTime(String iso) {
-    // 簡單切字串，不特別做時區處理
-    // 例如 "2025-12-14T22:30:00.123456" -> "2025-12-14 22:30"
     if (iso.length >= 16) {
       return iso.substring(0, 16).replaceFirst('T', ' ');
     }
@@ -71,49 +69,112 @@ class _HistoryPageState extends State<HistoryPage> {
     final reps = item['reps'] ?? 0;
     final difficulty = item['difficulty'] ?? 0;
     final time = item['time'] ?? '';
-
     final volume = (weight is num && reps is num) ? weight * reps : 0;
 
-    return Card(
-      child: ListTile(
-        title: Text('$name  x$reps @ ${weight}kg'),
-        subtitle: Text(
-          '$part｜主觀難度：$difficulty / 5\n時間：${_formatTime(time)}\n訓練量（重量×次數）：$volume',
-          style: const TextStyle(fontSize: 12),
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                '${weight}kg × $reps',
+                style: const TextStyle(color: Color(0xFF00FFA3), fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(part, style: const TextStyle(color: Colors.blueAccent, fontSize: 12)),
+              ),
+              const SizedBox(width: 10),
+              Text('難度：$difficulty / 5', style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+            ],
+          ),
+          const Divider(color: Colors.white10, height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('訓練時間', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                  Text(_formatTime(time), style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('總訓練量', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
+                  Text('${volume}kg', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget body;
-
-    if (_loading) {
-      body = const Center(child: CircularProgressIndicator());
-    } else if (_items.isEmpty) {
-      body = const Center(child: Text('目前沒有紀錄，先去做幾組吧！'));
-    } else {
-      body = ListView.builder(
-        itemCount: _items.length,
-        itemBuilder: (context, index) => _buildItem(_items[index]),
-      );
-    }
-
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('歷史訓練紀錄'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('訓練紀錄', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             onPressed: _requestHistory,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: '重新整理',
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(8),
-        child: body,
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A2A4D), Color(0xFF121212)],
+          ),
+        ),
+        child: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00FFA3)))
+              : _items.isEmpty
+              ? Center(child: Text('目前沒有紀錄，先去做幾組吧！', style: TextStyle(color: Colors.white.withOpacity(0.5))))
+              : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            itemCount: _items.length,
+            itemBuilder: (context, index) => _buildItem(_items[index]),
+          ),
+        ),
       ),
     );
   }
