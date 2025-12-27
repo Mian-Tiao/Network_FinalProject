@@ -72,3 +72,6 @@ android/build/
 .DS_Store
 Thumbs.db
 "@ | Set-Content .gitignore
+
+# Local server file
+server.py
