@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
 import 'today_workout_page.dart';
 
 class CheckinPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId;
 
   const CheckinPage({
     super.key,
@@ -58,10 +58,12 @@ class _CheckinPageState extends State<CheckinPage> {
       'soreness': _soreness,
       'stress': _stress,
     });
-    setState(() => _result = '正在分析您的身體狀況...');
+
+    setState(() {
+      _result = '已送出，等待伺服器回應...';
+    });
   }
 
-  // 打造像截圖中的卡片
   Widget _buildCheckinCard(String title, int value, String desc, ValueChanged<double> onChanged) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

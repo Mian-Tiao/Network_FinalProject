@@ -8,7 +8,7 @@ import 'exercise_library_page.dart';
 class HomePage extends StatelessWidget {
   final TcpClient client;
   final String username;
-  final int userId;
+  final String userId;
   final VoidCallback onLogout;
 
   const HomePage({

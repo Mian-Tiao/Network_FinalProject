@@ -1,10 +1,12 @@
+
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
 
 class HistoryPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId;
 
   const HistoryPage({
     super.key,

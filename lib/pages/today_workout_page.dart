@@ -1,10 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
 
 class TodayWorkoutPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId;
 
   const TodayWorkoutPage({
     super.key,

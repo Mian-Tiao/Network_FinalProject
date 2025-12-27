@@ -4,7 +4,7 @@ import '../services/tcp_client.dart';
 
 class ExerciseLibraryPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId; // 👈 新增這行
 
   const ExerciseLibraryPage({
     super.key,
@@ -19,14 +19,25 @@ class ExerciseLibraryPage extends StatefulWidget {
 class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
   final TextEditingController _nameController = TextEditingController();
 
+  // bodyPart 下拉選單（ExerciseDB 的分類）
   final List<String> _bodyParts = const [
-    '全部', 'back', 'cardio', 'chest', 'lower arms', 'lower legs',
-    'neck', 'shoulders', 'upper arms', 'upper legs', 'waist',
+    '全部',
+    'back',
+    'cardio',
+    'chest',
+    'lower arms',
+    'lower legs',
+    'neck',
+    'shoulders',
+    'upper arms',
+    'upper legs',
+    'waist',
   ];
 
   String _selectedBodyPart = '全部';
   bool _loading = false;
   List<dynamic> _results = [];
+
   StreamSubscription<Map<String, dynamic>>? _sub;
 
   @override

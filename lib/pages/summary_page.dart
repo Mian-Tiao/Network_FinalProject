@@ -1,10 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
 
 class SummaryPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId;
 
   const SummaryPage({
     super.key,
