@@ -4,7 +4,7 @@ import '../services/tcp_client.dart';
 
 class ExerciseLibraryPage extends StatefulWidget {
   final TcpClient client;
-  final int userId; // 👈 新增這行
+  final String userId; // 👈 新增這行
 
   const ExerciseLibraryPage({
     super.key,
@@ -43,29 +43,26 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
   @override
   void initState() {
     super.initState();
-
     _sub = widget.client.messages.listen((msg) {
       if (!mounted) return;
-
       if (msg['action'] == 'search_exercises') {
-        setState(() => _loading = false);
-
-        if (msg['status'] == 'ok') {
-          setState(() {
-            _results = msg['results'] as List<dynamic>? ?? [];
-          });
-        } else if (msg['action'] == 'add_exercise_from_api') {
+        setState(() {
+          _loading = false;
           if (msg['status'] == 'ok') {
-            final name = msg['name'] ?? '';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('成功把「$name」加入今日課表')),
-            );
-          } else {
-            final err = msg['message'] ?? '加入課表失敗';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(err.toString())),
-            );
+            _results = msg['results'] as List<dynamic>? ?? [];
           }
+        });
+      } else if (msg['action'] == 'add_exercise_from_api') {
+        if (msg['status'] == 'ok') {
+          final name = msg['name'] ?? '';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('成功把「$name」加入今日課表')),
+          );
+        } else {
+          final err = msg['message'] ?? '加入課表失敗';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(err.toString())),
+          );
         }
       }
     });
@@ -83,12 +80,8 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
       _loading = true;
       _results = [];
     });
-
-    final query = _nameController.text.trim().isEmpty
-        ? null
-        : _nameController.text.trim();
-    final bodyPart =
-    _selectedBodyPart == '全部' ? null : _selectedBodyPart;
+    final query = _nameController.text.trim().isEmpty ? null : _nameController.text.trim();
+    final bodyPart = _selectedBodyPart == '全部' ? null : _selectedBodyPart;
 
     widget.client.sendJson({
       'action': 'search_exercises',
@@ -100,147 +93,171 @@ class _ExerciseLibraryPageState extends State<ExerciseLibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('動作圖鑑（ExerciseDB API）'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('動作圖鑑', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // 搜尋區
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: '關鍵字（如 squat, press）',
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A2A4D), Color(0xFF121212)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // 搜尋列 (修正：加入右側點擊搜尋功能)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF64B5F6), Color(0xFF42A5F5)],
                     ),
+                    borderRadius: BorderRadius.circular(25),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedBodyPart,
-                    decoration: const InputDecoration(labelText: '部位'),
-                    items: _bodyParts
-                        .map(
-                          (bp) => DropdownMenuItem(
-                        value: bp,
-                        child: Text(bp),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 15),
+                      const Icon(Icons.search, color: Colors.white),
+                      Expanded(
+                        child: TextField(
+                          controller: _nameController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: "關鍵字 (如 squat, press)",
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          onSubmitted: (_) => _search(),
+                        ),
                       ),
-                    )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => _selectedBodyPart = v);
-                    },
+                      // 新增：顯性的搜尋按鈕，讓不輸入文字也能點擊搜尋
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                        onPressed: _search,
+                      ),
+                      const SizedBox(width: 5),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: _loading ? null : _search,
-                icon: const Icon(Icons.search),
-                label: const Text('搜尋動作'),
               ),
-            ),
-            const SizedBox(height: 8),
-            if (_loading) const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _results.isEmpty
-                  ? const Center(
-                child: Text(
-                  '輸入關鍵字或選部位後按「搜尋動作」\n會從線上資料庫抓動作與 GIF 回來',
-                  textAlign: TextAlign.center,
-                ),
-              )
-                  : ListView.builder(
-                itemCount: _results.length,
-                itemBuilder: (context, index) {
-                  final ex = _results[index] as Map<String, dynamic>;
-                  final name = ex['name'] ?? '';
-                  final bodyPart = ex['bodyPart'] ?? '';
-                  final target = ex['target'] ?? '';
-                  final equipment = ex['equipment'] ?? '';
-                  final gifUrl = ex['gifUrl'] as String? ?? '';
 
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              // 部位選擇
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: DropdownButtonFormField<String>(
+                  dropdownColor: const Color(0xFF1A2A4D),
+                  value: _selectedBodyPart,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: '選擇訓練部位',
+                    labelStyle: TextStyle(color: Colors.white70),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                  ),
+                  items: _bodyParts.map((bp) => DropdownMenuItem(value: bp, child: Text(bp))).toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _selectedBodyPart = v);
+                    // 選擇部位後自動觸發搜尋，這對使用者更方便
+                    _search();
+                  },
+                ),
+              ),
+
+              if (_loading) const LinearProgressIndicator(color: Color(0xFF00FFA3)),
+
+              Expanded(
+                child: _results.isEmpty
+                    ? Center(child: Text(_loading ? '搜尋中...' : '請輸入關鍵字或選擇部位', style: TextStyle(color: Colors.white.withOpacity(0.5))))
+                    : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemCount: _results.length,
+                  itemBuilder: (context, index) {
+                    final ex = _results[index] as Map<String, dynamic>;
+                    final gifUrl = ex['gifUrl'] as String? ?? '';
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
                         children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '部位: $bodyPart ／ 目標肌群: $target\n器材: $equipment',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          // 👇 從這裡開始加圖片
-                          if (gifUrl.isNotEmpty) const SizedBox(height: 8),
-                          if (gifUrl.isNotEmpty)
-                            AspectRatio(
-                              aspectRatio: 4 / 3,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  gifUrl,
-                                  fit: BoxFit.cover,
-                                  // 方便除錯：有錯時在 console 印出來
-                                  errorBuilder: (context, error, stackTrace) {
-                                    debugPrint('❌ 讀圖失敗 $gifUrl: $error');
-                                    return const Center(
-                                      child: Text('圖片載入失敗'),
-                                    );
-                                  },
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: gifUrl.isNotEmpty
+                                    ? Image.network(gifUrl, fit: BoxFit.contain)
+                                    : const Icon(Icons.image, color: Colors.grey, size: 50),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                color: Colors.white,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ex['name'] ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                                    ),
+                                    Text(
+                                      ex['target'] ?? '',
+                                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () {
+                            ],
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: GestureDetector(
+                              onTap: () {
                                 widget.client.sendJson({
                                   'action': 'add_exercise_from_api',
                                   'userId': widget.userId,
                                   'id': ex['id'],
-                                  'name': name,
-                                  'bodyPart': bodyPart,
-                                  'target': target,
-                                  'equipment': equipment,
+                                  'name': ex['name'],
+                                  'bodyPart': ex['bodyPart'],
+                                  'target': ex['target'],
+                                  'equipment': ex['equipment'],
                                 });
-
-                                // 先樂觀提示，等 server 回覆也可以再顯示一次
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('已送出，將「$name」加入課表')),
-                                );
                               },
-                              icon: const Icon(Icons.add),
-                              label: const Text('加入課表'),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: Color(0xFF00FFA3), shape: BoxShape.circle),
+                                child: const Icon(Icons.add, size: 18, color: Colors.black),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

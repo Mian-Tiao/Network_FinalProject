@@ -6,7 +6,7 @@ import 'today_workout_page.dart';
 
 class CheckinPage extends StatefulWidget {
   final TcpClient client;
-  final int userId;
+  final String userId;
 
   const CheckinPage({
     super.key,
@@ -64,89 +64,146 @@ class _CheckinPageState extends State<CheckinPage> {
     });
   }
 
-  Widget _buildSlider(
-      String title,
-      int value,
-      ValueChanged<double> onChanged,
-      ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$title：$value', style: const TextStyle(fontSize: 14)),
-        Slider(
-          value: value.toDouble(),
-          min: 1,
-          max: 5,
-          divisions: 4,
-          label: '$value',
-          onChanged: onChanged,
-        ),
-        const SizedBox(height: 4),
-      ],
+  Widget _buildCheckinCard(String title, int value, String desc, ValueChanged<double> onChanged) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('$value / 5', style: const TextStyle(color: Color(0xFF00FFA3), fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(desc, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: const Color(0xFF00FFA3),
+              inactiveTrackColor: Colors.white10,
+              thumbColor: Colors.white,
+              overlayColor: const Color(0xFF00FFA3).withOpacity(0.2),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: 1,
+              max: 5,
+              divisions: 4,
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('訓練前 Check-in'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Body Check-in', style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildSlider(
-              '睡眠品質（1好 5很糟）',
-              _sleep,
-                  (v) => setState(() => _sleep = v.toInt()),
-            ),
-            _buildSlider(
-              '身體疲勞（1不累 5爆累）',
-              _fatigue,
-                  (v) => setState(() => _fatigue = v.toInt()),
-            ),
-            _buildSlider(
-              '酸痛程度（1不酸 5超酸）',
-              _soreness,
-                  (v) => setState(() => _soreness = v.toInt()),
-            ),
-            _buildSlider(
-              '壓力 / 不舒服（1OK 5很不舒服）',
-              _stress,
-                  (v) => setState(() => _stress = v.toInt()),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _sendCheckin,
-              child: const Text('送出 Check-in'),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Text(
-                  _result,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: _canGoWorkout
-                  ? () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => TodayWorkoutPage(
-                      client: widget.client,
-                      userId: widget.userId,
-                    ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A2A4D), Color(0xFF121212)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                const Text("評估你今天的狀態，我們將調整你的訓練強度",
+                    style: TextStyle(color: Colors.white70, fontSize: 14)),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      _buildCheckinCard('睡眠品質', _sleep, '1 為良好，5 為極差', (v) => setState(() => _sleep = v.toInt())),
+                      _buildCheckinCard('身體疲勞', _fatigue, '1 為精神飽滿，5 為筋疲力竭', (v) => setState(() => _fatigue = v.toInt())),
+                      _buildCheckinCard('肌肉酸痛', _soreness, '1 為無感，5 為嚴重酸痛', (v) => setState(() => _soreness = v.toInt())),
+                      _buildCheckinCard('心理壓力', _stress, '1 為放鬆，5 為壓力極大', (v) => setState(() => _stress = v.toInt())),
+
+                      if (_result.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                          ),
+                          child: Text(_result, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                        ),
+                    ],
                   ),
-                );
-              }
-                  : null,
-              child: const Text('前往今日課表'),
+                ),
+
+                // 底部按鈕區
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Column(
+                    children: [
+                      if (!_canGoWorkout)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white10,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                            ),
+                            onPressed: _sendCheckin,
+                            child: const Text('送出分析', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      if (_canGoWorkout)
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => TodayWorkoutPage(client: widget.client, userId: widget.userId),
+                            ));
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Color(0xFF64B5F6), Color(0xFF1976D2)]),
+                              borderRadius: BorderRadius.circular(28),
+                              boxShadow: [
+                                BoxShadow(color: Colors.blue.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4)),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text('開始今日訓練', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
