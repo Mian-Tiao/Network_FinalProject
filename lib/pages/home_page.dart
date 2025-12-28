@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/tcp_client.dart';
 import 'checkin_page.dart';
 import 'history_page.dart';
 import 'summary_page.dart';
 import 'exercise_library_page.dart';
+import 'today_workout_page.dart';
 
 class HomePage extends StatelessWidget {
   final TcpClient client;
@@ -18,6 +21,42 @@ class HomePage extends StatelessWidget {
     required this.userId,
     required this.onLogout,
   });
+
+  // ✅ 一天只 Check-in 一次的邏輯：
+  //   - 今天沒做過：進 CheckinPage
+  //   - 今天做過：直接進 TodayWorkoutPage
+  Future<void> _handleStartTraining(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final now = DateTime.now();
+    final todayStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    final key = 'lastCheckinDate_$userId';
+    final last = prefs.getString(key);
+
+    if (last == todayStr) {
+      // 👉 今天已經 check-in 過，直接進今日訓練課表
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TodayWorkoutPage(
+            client: client,
+            userId: userId,
+          ),
+        ),
+      );
+    } else {
+      // 👉 今天還沒 check-in，先做疲勞評估
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CheckinPage(
+            client: client,
+            userId: userId,
+          ),
+        ),
+      );
+    }
+  }
 
   // 封裝功能卡片樣式
   Widget _buildMenuCard({
@@ -54,13 +93,30 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.3), size: 16),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white.withOpacity(0.3),
+                size: 16,
+              ),
             ],
           ),
         ),
@@ -75,7 +131,10 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('LiftLog', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'LiftLog',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             onPressed: onLogout,
@@ -101,11 +160,22 @@ class HomePage extends StatelessWidget {
               children: [
                 const SizedBox(height: 20),
                 // 歡迎語區塊
-                Text('歡迎回來，$username 👋',
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                Text(
+                  '歡迎回來，$username 👋',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text('今天想挑戰什麼運動？',
-                    style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 16)),
+                Text(
+                  '今天想挑戰什麼運動？',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 32),
 
                 // 功能列表
@@ -117,37 +187,52 @@ class HomePage extends StatelessWidget {
                         title: '訓練歷史紀錄',
                         subtitle: '回顧過去的汗水與進步',
                         iconColor: const Color(0xFF64B5F6),
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => HistoryPage(client: client, userId: userId))),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => HistoryPage(
+                              client: client,
+                              userId: userId,
+                            ),
+                          ),
+                        ),
                       ),
                       _buildMenuCard(
                         icon: Icons.bar_chart,
                         title: '訓練統計分析',
                         subtitle: '數據化的成長圖表',
                         iconColor: const Color(0xFF00FFA3),
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => SummaryPage(client: client, userId: userId))),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SummaryPage(
+                              client: client,
+                              userId: userId,
+                            ),
+                          ),
+                        ),
                       ),
                       _buildMenuCard(
                         icon: Icons.menu_book,
                         title: '動作圖鑑',
                         subtitle: '學習標準的健身動作',
                         iconColor: Colors.orangeAccent,
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => ExerciseLibraryPage(client: client, userId: userId))),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ExerciseLibraryPage(
+                              client: client,
+                              userId: userId,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                // 底部主按鈕 (與截圖一致的藍色漸層)
+                // 底部主按鈕（開始今日訓練）
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => CheckinPage(client: client, userId: userId)));
-                    },
+                    onTap: () => _handleStartTraining(context),
                     child: Container(
                       width: double.infinity,
                       height: 60,
@@ -167,7 +252,11 @@ class HomePage extends StatelessWidget {
                       child: const Center(
                         child: Text(
                           '開始今日訓練 (Check-in)',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),

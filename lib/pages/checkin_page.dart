@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/tcp_client.dart';
 import 'today_workout_page.dart';
 
@@ -31,14 +33,30 @@ class _CheckinPageState extends State<CheckinPage> {
   @override
   void initState() {
     super.initState();
-    _sub = widget.client.messages.listen((msg) {
+
+    _sub = widget.client.messages.listen((msg) async {
       if (msg['action'] == 'checkin') {
-        setState(() {
-          final score = msg['fatigueScore'];
-          final suggestion = msg['suggestion'];
-          _result = '疲勞分數：$score\n建議：$suggestion';
-          _canGoWorkout = true;
-        });
+        final score = msg['fatigueScore'];
+        final suggestion = msg['suggestion'];
+
+        // 先更新畫面
+        if (mounted) {
+          setState(() {
+            _result = '疲勞分數：$score\n建議：$suggestion';
+            _canGoWorkout = true;
+          });
+        }
+
+        // ✅ 記錄「今天已經做過 check-in」
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final now = DateTime.now();
+          final todayStr =
+              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          await prefs.setString('lastCheckinDate_${widget.userId}', todayStr);
+        } catch (_) {
+          // 失敗就算了，不影響主要流程
+        }
       }
     });
   }
@@ -64,7 +82,12 @@ class _CheckinPageState extends State<CheckinPage> {
     });
   }
 
-  Widget _buildCheckinCard(String title, int value, String desc, ValueChanged<double> onChanged) {
+  Widget _buildCheckinCard(
+      String title,
+      int value,
+      String desc,
+      ValueChanged<double> onChanged,
+      ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
@@ -79,12 +102,32 @@ class _CheckinPageState extends State<CheckinPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              Text('$value / 5', style: const TextStyle(color: Color(0xFF00FFA3), fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '$value / 5',
+                style: const TextStyle(
+                  color: Color(0xFF00FFA3),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(desc, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+          Text(
+            desc,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 12,
+            ),
+          ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: const Color(0xFF00FFA3),
@@ -114,7 +157,10 @@ class _CheckinPageState extends State<CheckinPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Body Check-in', style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Body Check-in',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
       body: Container(
         width: double.infinity,
@@ -132,26 +178,55 @@ class _CheckinPageState extends State<CheckinPage> {
             child: Column(
               children: [
                 const SizedBox(height: 10),
-                const Text("評估你今天的狀態，我們將調整你的訓練強度",
-                    style: TextStyle(color: Colors.white70, fontSize: 14)),
+                const Text(
+                  "評估你今天的狀態，我們將調整你的訓練強度",
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: ListView(
                     children: [
-                      _buildCheckinCard('睡眠品質', _sleep, '1 為良好，5 為極差', (v) => setState(() => _sleep = v.toInt())),
-                      _buildCheckinCard('身體疲勞', _fatigue, '1 為精神飽滿，5 為筋疲力竭', (v) => setState(() => _fatigue = v.toInt())),
-                      _buildCheckinCard('肌肉酸痛', _soreness, '1 為無感，5 為嚴重酸痛', (v) => setState(() => _soreness = v.toInt())),
-                      _buildCheckinCard('心理壓力', _stress, '1 為放鬆，5 為壓力極大', (v) => setState(() => _stress = v.toInt())),
-
+                      _buildCheckinCard(
+                        '睡眠品質',
+                        _sleep,
+                        '1 為良好，5 為極差',
+                            (v) => setState(() => _sleep = v.toInt()),
+                      ),
+                      _buildCheckinCard(
+                        '身體疲勞',
+                        _fatigue,
+                        '1 為精神飽滿，5 為筋疲力竭',
+                            (v) => setState(() => _fatigue = v.toInt()),
+                      ),
+                      _buildCheckinCard(
+                        '肌肉酸痛',
+                        _soreness,
+                        '1 為無感，5 為嚴重酸痛',
+                            (v) => setState(() => _soreness = v.toInt()),
+                      ),
+                      _buildCheckinCard(
+                        '心理壓力',
+                        _stress,
+                        '1 為放鬆，5 為壓力極大',
+                            (v) => setState(() => _stress = v.toInt()),
+                      ),
                       if (_result.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.blue.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.3),
+                            ),
                           ),
-                          child: Text(_result, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                          child: Text(
+                            _result,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -170,31 +245,57 @@ class _CheckinPageState extends State<CheckinPage> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white10,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(28),
+                              ),
                             ),
                             onPressed: _sendCheckin,
-                            child: const Text('送出分析', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            child: const Text(
+                              '送出分析',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       if (_canGoWorkout)
                         GestureDetector(
                           onTap: () {
-                            Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => TodayWorkoutPage(client: widget.client, userId: widget.userId),
-                            ));
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => TodayWorkoutPage(
+                                  client: widget.client,
+                                  userId: widget.userId,
+                                ),
+                              ),
+                            );
                           },
                           child: Container(
                             width: double.infinity,
                             height: 56,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [Color(0xFF64B5F6), Color(0xFF1976D2)]),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
+                              ),
                               borderRadius: BorderRadius.circular(28),
                               boxShadow: [
-                                BoxShadow(color: Colors.blue.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4)),
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(0.4),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
                               ],
                             ),
                             child: const Center(
-                              child: Text('開始今日訓練', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              child: Text(
+                                '開始今日訓練',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ),

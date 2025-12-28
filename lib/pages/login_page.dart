@@ -25,22 +25,9 @@ class _LoginPageState extends State<LoginPage> {
   String _status = '請輸入帳號與密碼登入';
   bool _isLoading = false;
 
-  // 如果你之後還要聽 TCP 的 login 回應再用，現在先不用
   StreamSubscription<Map<String, dynamic>>? _sub;
 
   SupabaseClient get _supabase => Supabase.instance.client;
-
-  @override
-  void initState() {
-    super.initState();
-    // 如果你之後還是要保留 TCP 的 login 回應，可以在這裡 listen
-    // 目前我們改用 Supabase Auth 當真正登入，就先不綁定 action == 'login' 了
-    /*
-    _sub = widget.client.messages.listen((msg) {
-      ...
-    });
-    */
-  }
 
   @override
   void dispose() {
@@ -55,9 +42,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = _pwdController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _status = '帳號與密碼不能空白';
-      });
+      setState(() => _status = '帳號與密碼不能空白');
       return;
     }
 
@@ -81,9 +66,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final userId = user.id; // 這個就是之後給 TCP server 的 userId
-
-      // （選擇性）通知 TCP server 一下：「這個 user 上線了」
+      final userId = user.id;
       widget.client.sendJson({
         'action': 'login',
         'userId': userId,
@@ -105,71 +88,149 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _goRegister() async {
-    // 跳到註冊頁
     final createdEmail = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => const RegisterPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const RegisterPage()),
     );
 
-    // 如果註冊成功回來，可以自動填入 email
     if (createdEmail != null && createdEmail.isNotEmpty) {
       _emailController.text = createdEmail;
-      setState(() {
-        _status = '註冊成功，請輸入密碼登入';
-      });
+      setState(() => _status = '註冊成功，請輸入密碼登入');
     }
+  }
+
+  // 封裝輸入框樣式
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    bool obscureText = false,
+    required IconData icon,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon, color: Colors.white70),
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.white54),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent, // 防止露白
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('LiftLog 登入'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('LiftLog 登入', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: '帳號（Email）',
-              ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A2A4D), Color(0xFF121212)],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
+                // Logo 或 標題區
+                const Icon(Icons.fitness_center, size: 80, color: Color(0xFF00FFA3)),
+                const SizedBox(height: 16),
+                const Text(
+                  '歡迎回來',
+                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 40),
+
+                _buildTextField(
+                  controller: _emailController,
+                  label: '帳號（Email）',
+                  icon: Icons.email_outlined,
+                ),
+                _buildTextField(
+                  controller: _pwdController,
+                  label: '密碼',
+                  obscureText: true,
+                  icon: Icons.lock_outline,
+                ),
+
+                const SizedBox(height: 16),
+
+                // 狀態顯示
+                Text(
+                  _status,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Color(0xFF00FFA3), fontSize: 13),
+                ),
+
+                const SizedBox(height: 32),
+
+                // 登入按鈕 (漸層風格)
+                GestureDetector(
+                  onTap: _isLoading ? null : _login,
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _isLoading
+                          ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                          : const Text(
+                        '登入',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                TextButton(
+                  onPressed: _goRegister,
+                  child: const Text(
+                    '還沒有帳號？前往註冊',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _pwdController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '密碼',
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _login,
-                child: _isLoading
-                    ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-                    : const Text('登入'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _goRegister,
-              child: const Text('還沒有帳號？前往註冊'),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _status,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
+          ),
         ),
       ),
     );

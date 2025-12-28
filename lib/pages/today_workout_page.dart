@@ -25,7 +25,7 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
   StreamSubscription<Map<String, dynamic>>? _sub;
   String _selectedBodyPart = 'all';
 
-  final Map<int, int> _sessionSetCounts = {};
+  final Map<String, int> _sessionSetCounts = {};
 
   @override
   void initState() {
@@ -85,10 +85,17 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
   }
 
   void _openLogSetDialog(Map<String, dynamic> exercise) {
-    final weightController = TextEditingController(text: '${exercise['suggestedWeight']}');
-    final repsController = TextEditingController(text: '${exercise['minReps']}');
-    final exId = exercise['id'] as int;
+    final weightController = TextEditingController(
+      text: '${exercise['suggestedWeight']}',
+    );
+    final repsController = TextEditingController(
+      text: '${exercise['minReps']}',
+    );
+
+    // ✅ 不管原本是 int 還是 String，一律 toString
+    final exId = exercise['id'].toString();
     final currentSet = (_sessionSetCounts[exId] ?? 0) + 1;
+
     int difficulty = 3;
 
     showDialog(
@@ -100,29 +107,50 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
               data: ThemeData.dark(),
               child: AlertDialog(
                 backgroundColor: const Color(0xFF1A2A4D),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                title: Text('紀錄第 $currentSet 組', style: const TextStyle(color: Colors.white)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                title: Text(
+                  '紀錄第 $currentSet 組',
+                  style: const TextStyle(color: Colors.white),
+                ),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(exercise['name'], style: const TextStyle(color: Color(0xFF00FFA3), fontWeight: FontWeight.bold)),
+                    Text(
+                      exercise['name'],
+                      style: const TextStyle(
+                        color: Color(0xFF00FFA3),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: weightController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(labelText: '重量 (kg)', labelStyle: TextStyle(color: Colors.white70)),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: '重量 (kg)',
+                        labelStyle: TextStyle(color: Colors.white70),
+                      ),
+                      keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                     ),
                     TextField(
                       controller: repsController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(labelText: '次數 (reps)', labelStyle: TextStyle(color: Colors.white70)),
+                      decoration: const InputDecoration(
+                        labelText: '次數 (reps)',
+                        labelStyle: TextStyle(color: Colors.white70),
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        const Text('難度：', style: TextStyle(color: Colors.white)),
+                        const Text(
+                          '難度：',
+                          style: TextStyle(color: Colors.white),
+                        ),
                         Expanded(
                           child: Slider(
                             value: difficulty.toDouble(),
@@ -130,30 +158,59 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
                             max: 5,
                             divisions: 4,
                             activeColor: const Color(0xFF00FFA3),
-                            onChanged: (v) => setStateDialog(() => difficulty = v.toInt()),
+                            onChanged: (v) {
+                              setStateDialog(
+                                    () => difficulty = v.toInt(),
+                              );
+                            },
                           ),
                         ),
-                        Text('$difficulty', style: const TextStyle(color: Color(0xFF00FFA3))),
+                        Text(
+                          '$difficulty',
+                          style: const TextStyle(color: Color(0xFF00FFA3)),
+                        ),
                       ],
                     ),
                   ],
                 ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消', style: TextStyle(color: Colors.white54))),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      '取消',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                  ),
                   TextButton(
                     onPressed: () {
+                      final w =
+                          double.tryParse(weightController.text.trim()) ?? 0.0;
+                      final r = int.tryParse(repsController.text.trim()) ?? 0;
+
+                      // 🔍 先在前端印一發，確定有呼叫到這裡
+                      debugPrint(
+                        '[UI] send log_set exId=$exId weight=$w reps=$r diff=$difficulty',
+                      );
+
                       widget.client.sendJson({
                         'action': 'log_set',
-                        'userId': widget.userId,
-                        'exerciseId': exId,
-                        'weight': double.tryParse(weightController.text) ?? 0,
-                        'reps': int.tryParse(repsController.text) ?? 0,
+                        'userId': widget.userId,   // Supabase auth 那個
+                        'exerciseId': exId,        // ✅ 一律字串
+                        'weight': w,
+                        'reps': r,
                         'difficulty': difficulty,
                       });
-                      setState(() => _sessionSetCounts[exId] = currentSet);
+
+                      setState(() {
+                        _sessionSetCounts[exId] = currentSet;
+                      });
+
                       Navigator.pop(context);
                     },
-                    child: const Text('送出', style: TextStyle(color: Color(0xFF64B5F6))),
+                    child: const Text(
+                      '送出',
+                      style: TextStyle(color: Color(0xFF64B5F6)),
+                    ),
                   ),
                 ],
               ),
@@ -163,6 +220,7 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
       },
     );
   }
+
 
   Widget _buildBodyPartFilter() {
     return SingleChildScrollView(
