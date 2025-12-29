@@ -85,134 +85,240 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
   }
 
   void _openLogSetDialog(Map<String, dynamic> exercise) {
-    final weightController = TextEditingController(
-      text: '${exercise['suggestedWeight']}',
-    );
-    final repsController = TextEditingController(
-      text: '${exercise['minReps']}',
-    );
+    // 初始數值設定
+    double currentWeight = double.tryParse('${exercise['suggestedWeight']}') ?? 0.0;
+    int currentReps = int.tryParse('${exercise['minReps']}') ?? 0;
 
-    // ✅ 不管原本是 int 還是 String，一律 toString
+    // 預設難度 (對應圖片: Easy, Mild, Hard, Fail) -> 預設選中 Mild (2)
+    int difficulty = 2;
+
     final exId = exercise['id'].toString();
     final currentSet = (_sessionSetCounts[exId] ?? 0) + 1;
 
-    int difficulty = 3;
+    // 顏色定義 (參考圖片)
+    final Color bgDark = const Color(0xFF141B2D); // 深藍背景
+    final Color cardColor = const Color(0xFF1A2A4D); // 稍微亮一點的區塊
+    final Color activeGreen = const Color(0xFF00C853);
+    final Color activeYellow = const Color(0xFFFFAB00);
+    final Color activeRed = const Color(0xFFD50000);
+    final Color activeFail = const Color(0xFF8B0000);
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            return Theme(
-              data: ThemeData.dark(),
-              child: AlertDialog(
-                backgroundColor: const Color(0xFF1A2A4D),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+
+            // 內部 Helper: 建立圓形計數按鈕
+            Widget buildCounterButton(IconData icon, VoidCallback onPressed) {
+              return Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF233055), // 按鈕背景色
+                  shape: BoxShape.circle,
                 ),
-                title: Text(
-                  '紀錄第 $currentSet 組',
-                  style: const TextStyle(color: Colors.white),
+                child: IconButton(
+                  icon: Icon(icon, color: Colors.white, size: 20),
+                  onPressed: onPressed,
                 ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
+              );
+            }
+
+            // 內部 Helper: 建立難度選擇圓球
+            Widget buildEffortCircle(String label, int value, Color color) {
+              bool isSelected = difficulty == value;
+              return GestureDetector(
+                onTap: () {
+                  setStateDialog(() => difficulty = value);
+                },
+                child: Column(
                   children: [
-                    Text(
-                      exercise['name'],
-                      style: const TextStyle(
-                        color: Color(0xFF00FFA3),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: weightController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: '重量 (kg)',
-                        labelStyle: TextStyle(color: Colors.white70),
-                      ),
-                      keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    TextField(
-                      controller: repsController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        labelText: '次數 (reps)',
-                        labelStyle: TextStyle(color: Colors.white70),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Text(
-                          '難度：',
-                          style: TextStyle(color: Colors.white),
+                    Container(
+                      width: 55,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        color: isSelected ? color : Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? Colors.transparent : color.withOpacity(0.5),
+                          width: 2,
                         ),
-                        Expanded(
-                          child: Slider(
-                            value: difficulty.toDouble(),
-                            min: 1,
-                            max: 5,
-                            divisions: 4,
-                            activeColor: const Color(0xFF00FFA3),
-                            onChanged: (v) {
-                              setStateDialog(
-                                    () => difficulty = v.toInt(),
-                              );
-                            },
-                          ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: isSelected ? Colors.black : Colors.white70,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
-                        Text(
-                          '$difficulty',
-                          style: const TextStyle(color: Color(0xFF00FFA3)),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      '取消',
-                      style: TextStyle(color: Colors.white54),
+              );
+            }
+
+            return Dialog(
+              backgroundColor: bgDark,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              insetPadding: const EdgeInsets.all(16), // 調整邊距讓它看起來寬一點
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. 頂部 Handle Bar (裝飾用)
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final w =
-                          double.tryParse(weightController.text.trim()) ?? 0.0;
-                      final r = int.tryParse(repsController.text.trim()) ?? 0;
 
-                      // 🔍 先在前端印一發，確定有呼叫到這裡
-                      debugPrint(
-                        '[UI] send log_set exId=$exId weight=$w reps=$r diff=$difficulty',
-                      );
-
-                      widget.client.sendJson({
-                        'action': 'log_set',
-                        'userId': widget.userId,   // Supabase auth 那個
-                        'exerciseId': exId,        // ✅ 一律字串
-                        'weight': w,
-                        'reps': r,
-                        'difficulty': difficulty,
-                      });
-
-                      setState(() {
-                        _sessionSetCounts[exId] = currentSet;
-                      });
-
-                      Navigator.pop(context);
-                    },
-                    child: const Text(
-                      '送出',
-                      style: TextStyle(color: Color(0xFF64B5F6)),
+                    // 2. 標題與組數
+                    Text(
+                      '${exercise['name']}',
+                      style: const TextStyle(color: Colors.white54, fontSize: 14),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '第 $currentSet 組', // Set 1
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // 3. 重量控制 (Weight)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        buildCounterButton(Icons.remove, () {
+                          setStateDialog(() {
+                            if (currentWeight > 0) currentWeight -= 2.5; // 每次減 2.5kg
+                            if (currentWeight < 0) currentWeight = 0;
+                          });
+                        }),
+                        Column(
+                          children: [
+                            Text(
+                              currentWeight % 1 == 0
+                                  ? currentWeight.toStringAsFixed(0)
+                                  : currentWeight.toString(),
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                            ),
+                            const Text('kg', style: TextStyle(color: Colors.white54, fontSize: 14)),
+                          ],
+                        ),
+                        buildCounterButton(Icons.add, () {
+                          setStateDialog(() => currentWeight += 2.5);
+                        }),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // 4. 次數控制 (Reps)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        buildCounterButton(Icons.remove, () {
+                          setStateDialog(() {
+                            if (currentReps > 0) currentReps--;
+                          });
+                        }),
+                        Column(
+                          children: [
+                            Text(
+                              '$currentReps',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                            ),
+                            const Text('reps', style: TextStyle(color: Colors.white54, fontSize: 14)),
+                          ],
+                        ),
+                        buildCounterButton(Icons.add, () {
+                          setStateDialog(() => currentReps++);
+                        }),
+                      ],
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // 5. 難度選擇 (Effort)
+                    const Text('Effort', style: TextStyle(color: Colors.white54, fontSize: 14)),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        buildEffortCircle('Easy', 1, activeGreen),
+                        buildEffortCircle('Mild', 2, activeYellow),
+                        buildEffortCircle('Hard', 3, activeRed),
+                        buildEffortCircle('Fail', 4, activeFail),
+                      ],
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // 6. 按鈕區域 (Save & Cancel)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // 邏輯保持不變
+                          debugPrint(
+                            '[UI] send log_set exId=$exId weight=$currentWeight reps=$currentReps diff=$difficulty',
+                          );
+                          widget.client.sendJson({
+                            'action': 'log_set',
+                            'userId': widget.userId,
+                            'exerciseId': exId,
+                            'weight': currentWeight,
+                            'reps': currentReps,
+                            'difficulty': difficulty,
+                          });
+                          setState(() {
+                            _sessionSetCounts[exId] = currentSet;
+                          });
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF42A5F5), // 藍色
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text('Save Set',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEF5350), // 紅色
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text('Cancel',
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
