@@ -1,109 +1,95 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'register_page.dart';
-import '../services/tcp_client.dart';
 
-class LoginPage extends StatefulWidget {
-  final TcpClient client;
-  final void Function(String userId, String username) onLoginSuccess;
-
-  const LoginPage({
-    super.key,
-    required this.client,
-    required this.onLoginSuccess,
-  });
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _pwdController = TextEditingController();
+  final TextEditingController _pwdConfirmController = TextEditingController();
 
-  String _status = '請輸入帳號與密碼登入';
   bool _isLoading = false;
-
-  StreamSubscription<Map<String, dynamic>>? _sub;
+  String _status = '';
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
   @override
   void dispose() {
-    _sub?.cancel();
     _emailController.dispose();
     _pwdController.dispose();
+    _pwdConfirmController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _register() async {
     final email = _emailController.text.trim();
-    final password = _pwdController.text;
+    final pwd = _pwdController.text;
+    final pwd2 = _pwdConfirmController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _status = '帳號與密碼不能空白');
+    if (email.isEmpty || pwd.isEmpty || pwd2.isEmpty) {
+      if (!mounted) return;
+      setState(() => _status = '所有欄位都要填寫');
       return;
     }
 
+    if (pwd != pwd2) {
+      if (!mounted) return;
+      setState(() => _status = '兩次輸入的密碼不一致');
+      return;
+    }
+
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
-      _status = '登入中...';
+      _status = '註冊中...';
     });
 
     try {
-      final authRes = await _supabase.auth.signInWithPassword(
+      final res = await _supabase.auth.signUp(
         email: email,
-        password: password,
+        password: pwd,
       );
 
-      final user = authRes.user;
+      final user = res.user;
       if (user == null) {
+        if (!mounted) return;
         setState(() {
-          _status = '登入失敗：無法取得使用者資訊';
+          _status = '註冊失敗：未取得使用者資料';
           _isLoading = false;
         });
         return;
       }
 
-      final userId = user.id;
-      widget.client.sendJson({
-        'action': 'login',
-        'userId': userId,
-        'username': email,
-      });
-
-      widget.onLoginSuccess(userId, email);
+      if (mounted) {
+        Navigator.of(context).pop<String>(email);
+      }
     } on AuthException catch (e) {
+      if (!mounted) return;
       setState(() {
-        _status = '登入失敗：${e.message}';
+        _status = '註冊失敗：${e.message}';
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _status = '登入發生錯誤：$e';
+        _status = '註冊發生錯誤：$e';
         _isLoading = false;
       });
     }
   }
 
-  void _goRegister() async {
-    final createdEmail = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const RegisterPage()),
-    );
-
-    if (createdEmail != null && createdEmail.isNotEmpty) {
-      _emailController.text = createdEmail;
-      setState(() => _status = '註冊成功，請輸入密碼登入');
-    }
-  }
-
-  // 封裝輸入框樣式
+  // 封裝與 LoginPage 一致的輸入框樣式
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
     bool obscureText = false,
     required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -115,6 +101,7 @@ class _LoginPageState extends State<LoginPage> {
       child: TextField(
         controller: controller,
         obscureText: obscureText,
+        keyboardType: keyboardType,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: Colors.white70),
@@ -135,7 +122,8 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('LiftLog 登入', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: Colors.white), // 返回箭頭改白色
+        title: const Text('註冊帳號', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: Container(
         width: double.infinity,
@@ -144,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A2A4D), Color(0xFF121212)],
+            colors: [Color(0xFF1A2A4D), Color(0xFF121212)], // 統一深色漸層
           ),
         ),
         child: SafeArea(
@@ -152,20 +140,20 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.all(32.0),
             child: Column(
               children: [
-                const SizedBox(height: 40),
-                // Logo 或 標題區
-                const Icon(Icons.fitness_center, size: 80, color: Color(0xFF00FFA3)),
+                const SizedBox(height: 20),
+                const Icon(Icons.person_add_alt_1_outlined, size: 80, color: Color(0xFF00FFA3)), // 螢光綠標籤
                 const SizedBox(height: 16),
                 const Text(
-                  '歡迎回來',
+                  '建立新帳號',
                   style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 40),
 
                 _buildTextField(
                   controller: _emailController,
-                  label: '帳號（Email）',
+                  label: 'Email（登入帳號）',
                   icon: Icons.email_outlined,
+                  keyboardType: TextInputType.emailAddress,
                 ),
                 _buildTextField(
                   controller: _pwdController,
@@ -173,10 +161,16 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: true,
                   icon: Icons.lock_outline,
                 ),
+                _buildTextField(
+                  controller: _pwdConfirmController,
+                  label: '再次輸入密碼',
+                  obscureText: true,
+                  icon: Icons.lock_clock_outlined,
+                ),
 
                 const SizedBox(height: 16),
 
-                // 狀態顯示
+                // 狀態顯示 (螢光綠字體)
                 Text(
                   _status,
                   textAlign: TextAlign.center,
@@ -185,9 +179,9 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 32),
 
-                // 登入按鈕 (漸層風格)
+                // 註冊按鈕 (藍色漸層)
                 GestureDetector(
-                  onTap: _isLoading ? null : _login,
+                  onTap: _isLoading ? null : _register,
                   child: Container(
                     width: double.infinity,
                     height: 56,
@@ -212,20 +206,10 @@ class _LoginPageState extends State<LoginPage> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                           : const Text(
-                        '登入',
+                        '註冊',
                         style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                TextButton(
-                  onPressed: _goRegister,
-                  child: const Text(
-                    '還沒有帳號？前往註冊',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ),
               ],
