@@ -8,7 +8,6 @@ class ChatRoomPage extends StatefulWidget {
   final String username;   // 顯示用
   final String roomId;     // room id
   final String roomTitle;  // room name
-
   const ChatRoomPage({
     super.key,
     required this.client,
@@ -66,11 +65,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       }
     });
 
-    // ✅ 進房間（讓 server 知道你要收這個 room 的即時訊息）
+
     widget.client.sendJson({
-      'action': 'join_room',
-      'uid': widget.userId,
+      'action': 'send_room_message',
+      'uid': widget.userId,                 // ✅ demo 固定
       'roomId': widget.roomId,
+      'senderName': widget.username, // ✅ 這裡放 email
     });
 
     // ✅ 拉歷史
@@ -88,14 +88,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   void _send() {
-    final text = _textController.text.trim();
+    final text = _textController.text.trim(); // ✅ 先宣告
     if (text.isEmpty) return;
 
     widget.client.sendJson({
       'action': 'send_room_message',
-      'uid': widget.userId,
+      'uid': widget.userId, // demo 固定
       'roomId': widget.roomId,
-      'text': text,
+      'text': text, // ✅ 這裡才用得到
       'senderName': widget.username,
     });
 
@@ -128,7 +128,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     final text = item['text']?.toString() ?? '';
     final meta = item['meta'];
 
-    final isMe = senderId == widget.userId;
+    final isMe = (item['senderName']?.toString() ?? '') == widget.username;
     final isSystem = senderId == 'system';
 
     // PR / 系統卡片

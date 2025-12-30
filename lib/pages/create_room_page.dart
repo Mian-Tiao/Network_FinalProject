@@ -4,7 +4,7 @@ import '../services/tcp_client.dart';
 
 class CreateRoomPage extends StatefulWidget {
   final TcpClient client;
-  final String userId;
+  final String userId; // Supabase uid
 
   const CreateRoomPage({
     super.key,
@@ -26,27 +26,40 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
   @override
   void initState() {
     super.initState();
+
     _sub = widget.client.messages.listen((msg) {
       if (!mounted) return;
-      if (msg['action'] == 'create_room') {
+
+      // ✅ 你送的是 chat_create_room，所以這裡也要聽 chat_create_room
+      if (msg['action'] == 'chat_create_room') {
         setState(() => _loading = false);
 
         if (msg['status'] == 'ok') {
-          final notFound = (msg['notFound'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-          if (notFound.isNotEmpty) {
+          // server 回傳：roomId / title
+          final roomId = (msg['roomId'] ?? '').toString();
+          final title = (msg['title'] ?? '聊天室').toString();
+
+          if (roomId.isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('以下 email 找不到：${notFound.join(", ")}')),
+              const SnackBar(content: Text('建立成功但 roomId 是空的，無法跳轉')),
             );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('聊天室建立成功 ✅')),
-            );
+            return;
           }
-          Navigator.pop(context, true);
-        } else {
-          final err = msg['message'] ?? '建立聊天室失敗';
+
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(err.toString())),
+            SnackBar(content: Text('聊天室建立成功 ✅ $title')),
+          );
+
+          // ✅ 把 roomId/title 帶回 ChatRoomsPage（那邊可以直接跳轉）
+          Navigator.pop(context, {
+            'ok': true,
+            'roomId': roomId,
+            'title': title,
+          });
+        } else {
+          final err = (msg['message'] ?? '建立聊天室失敗').toString();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(err)),
           );
         }
       }
@@ -62,25 +75,28 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
   }
 
   void _create() {
-    final title = _titleController.text.trim().isEmpty ? '新聊天室' : _titleController.text.trim();
+    final title = _titleController.text.trim().isEmpty
+        ? '新聊天室'
+        : _titleController.text.trim();
+
     final raw = _emailsController.text.trim();
 
-    // 支援：逗號/換行 分隔
+    // ✅ 支援：逗號 / 分號 / 換行 分隔
     final emails = raw
-        .split(RegExp(r'[,\n]'))
+        .split(RegExp(r'[,;\n]'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
 
     setState(() => _loading = true);
 
+    // ✅ 送真正的 title / emails，不要寫死
     widget.client.sendJson({
       "action": "chat_create_room",
-      "uid": widget.userId,                 // ✅ 這裡改成 uid
-      "roomName": "xxx",
-      "memberEmails": ["a@gmail.com","b@gmail.com"],
+      "uid": widget.userId,
+      "roomName": title,
+      "memberEmails": emails,
     });
-
   }
 
   @override
@@ -91,7 +107,10 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('建立聊天室', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          '建立聊天室',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
       body: Container(
         width: double.infinity,
@@ -125,7 +144,12 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
                         decoration: InputDecoration(
                           hintText: '例如：健身夥伴群',
                           hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
-                          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFF00FFA3)),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -136,11 +160,18 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
                         style: const TextStyle(color: Colors.white),
                         minLines: 3,
                         maxLines: 6,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: '用逗號或換行分隔\n例如：a@gmail.com, b@gmail.com',
                           hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
-                          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.2))),
-                          focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FFA3))),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFF00FFA3)),
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
                         ),
                       ),
                     ],
@@ -158,7 +189,11 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
                     ),
                     onPressed: _loading ? null : _create,
                     child: _loading
-                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                         : const Text('建立聊天室', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                 ),

@@ -132,8 +132,8 @@ class _ChatRoomsPageState extends State<ChatRoomsPage> {
             child: ListView(
               shrinkWrap: true,
               children: _rooms.map((r) {
-                final id = r['id']?.toString() ?? '';
-                final title = r['name']?.toString().trim().isNotEmpty == true ? r['name'].toString() : '聊天室';
+                final id = r['roomId']?.toString() ?? '';
+                final title = (r['title'] ?? '聊天室').toString();
 
                 return RadioListTile<String>(
                   value: id,
@@ -176,8 +176,8 @@ class _ChatRoomsPageState extends State<ChatRoomsPage> {
   }
 
   Widget _roomCard(Map<String, dynamic> room) {
-    final title = (room['name']?.toString().trim().isNotEmpty == true) ? room['name'].toString() : '聊天室';
-    final roomId = room['id']?.toString() ?? '';
+    final title = (room['title'] ?? '聊天室').toString();
+    final roomId = (room['roomId'] ?? '').toString();
     final isPrRoom = roomId.isNotEmpty && roomId == _selectedPrRoomId;
 
     return Container(
@@ -266,7 +266,7 @@ class _ChatRoomsPageState extends State<ChatRoomsPage> {
           IconButton(
             tooltip: '新增聊天室',
             onPressed: () async {
-              final ok = await Navigator.of(context).push<bool>(
+              final result = await Navigator.of(context).push<Map<String, dynamic>>(
                 MaterialPageRoute(
                   builder: (_) => CreateRoomPage(
                     client: widget.client,
@@ -274,7 +274,28 @@ class _ChatRoomsPageState extends State<ChatRoomsPage> {
                   ),
                 ),
               );
-              if (ok == true) _requestRooms();
+
+              if (result == null) return;
+
+              if (result['ok'] == true) {
+                final roomId = (result['roomId'] ?? '').toString();
+                final title = (result['title'] ?? '聊天室').toString();
+
+                _requestRooms(); // 可要可不要
+                if (roomId.isNotEmpty && mounted) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ChatRoomPage(
+                        client: widget.client,
+                        userId: widget.userId,
+                        username: widget.username,
+                        roomId: roomId,
+                        roomTitle: title,
+                      ),
+                    ),
+                  );
+                }
+              }
             },
             icon: const Icon(Icons.add_circle_outline, color: Colors.white),
           ),
