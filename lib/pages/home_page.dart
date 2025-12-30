@@ -7,6 +7,8 @@ import 'history_page.dart';
 import 'summary_page.dart';
 import 'exercise_library_page.dart';
 import 'today_workout_page.dart';
+import 'chat_room_page.dart';
+import 'chat_rooms_page.dart';
 
 class HomePage extends StatelessWidget {
   final TcpClient client;
@@ -224,9 +226,31 @@ class HomePage extends StatelessWidget {
                           ),
                         ),
                       ),
+
+                      // ✅ 把聊天室放這裡
+                      _buildMenuCard(
+                        icon: Icons.forum,
+                        title: '聊天室',
+                        subtitle: '和朋友分享 PR 與訓練心得',
+                        iconColor: const Color(0xFF00FFA3),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomsPage(
+                              client: client,
+                              userId: userId,
+                              username: username,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ✅ 給底部按鈕留空間（避免被擋到）
+                      const SizedBox(height: 110),
                     ],
                   ),
                 ),
+
+
 
                 // 底部主按鈕（開始今日訓練）
                 Padding(

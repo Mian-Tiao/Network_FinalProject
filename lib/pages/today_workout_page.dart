@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../services/tcp_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TodayWorkoutPage extends StatefulWidget {
   final TcpClient client;
@@ -30,7 +31,7 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
   @override
   void initState() {
     super.initState();
-    _sub = widget.client.messages.listen((msg) {
+    _sub = widget.client.messages.listen((msg) async {
       if (msg['action'] == 'get_today_plan' && msg['status'] == 'ok') {
         final List<dynamic> rawPlan = msg['plan'] ?? [];
         setState(() {
@@ -44,6 +45,15 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
         final prevBest = (msg['prevBest'] as num? ?? 0).toDouble();
 
         if (isPr) {
+          await _pushPrToChat(
+            content: prevBest > 0
+                ? '🔥 我剛剛 PR 了！原本最佳 ${prevBest.toStringAsFixed(1)} kg'
+                : '🔥 我剛剛創下第一筆紀錄！',
+            meta: {
+              'exerciseId': msg['exerciseId'], // 如果 server 沒回這欄就刪掉
+              'prevBest': prevBest,
+            },
+          );
           if(!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -68,6 +78,33 @@ class _TodayWorkoutPageState extends State<TodayWorkoutPage> {
       }
     });
     _requestPlan();
+  }
+  Future<String?> _getSelectedPrRoomId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('prRoom_${widget.userId}');
+  }
+
+  Future<void> _pushPrToChat({required String content, Map<String, dynamic>? meta}) async {
+    // 1) 先找「選定群組」
+    final roomId = await _getSelectedPrRoomId();
+
+    if (roomId != null && roomId.isNotEmpty) {
+      widget.client.sendJson({
+        'action': 'chat_send_pr',
+        'uid': widget.userId,
+        'roomId': roomId,
+        'content': content,
+        'meta': meta,
+      });
+    } else {
+      // 2) 沒選群 → 最不麻煩：直接推到所有包含他的聊天室
+      widget.client.sendJson({
+        'action': 'chat_push_pr_all_rooms',
+        'uid': widget.userId,
+        'content': content,
+        'meta': meta,
+      });
+    }
   }
 
   void _requestPlan() {
